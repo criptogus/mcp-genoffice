@@ -23,8 +23,13 @@ its original bytes. Layout never breaks.
 | `genoffice_pptx_patch` | Replace text of elements on a slide (element-level byte-preserving) |
 | `genoffice_pptx_create` | Create a NEW .pptx from scratch (one blank slide) |
 | `genoffice_pptx_delete` | Delete elements from a slide (other slides/parts byte-preserved) |
+| `genoffice_app_status` | GenOffice desktop app: installed? CDP port up? (read-only) |
+| `genoffice_app_launch` | Launch the app with the CDP debug port (handles auto-update relaunch) |
+| `genoffice_app_open_file` | Open a file in the app (macOS `open -a`, registered doc types) |
+| `genoffice_app_screenshot` | PNG screenshot of the app window over CDP |
+| `genoffice_app_eval` | Evaluate read-only JS in the app page context (DOM) |
 
-More tools (xlsx ops, CDP control of the GenOffice app) are on the roadmap.
+More tools (xlsx ops) are on the roadmap.
 
 ## Install / run
 
