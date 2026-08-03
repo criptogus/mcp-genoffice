@@ -103,14 +103,9 @@ export async function cdpOpenPage(port = CDP_PORT): Promise<WebSocket> {
   const targets = await cdpTargets(port)
   const page = targets[0]
   if (!page?.webSocketDebuggerUrl) {
-    // fetch returns only the JSON fields we typed; re-fetch raw for the ws url
-    const res = await fetch(`http://127.0.0.1:${port}/json/list`)
-    const all = (await res.json()) as Array<{ type: string; webSocketDebuggerUrl?: string }>
-    const p = all.find((t) => t.type === 'page')
-    if (!p?.webSocketDebuggerUrl) throw new Error('no page target on the CDP port')
-    return connect(p.webSocketDebuggerUrl)
+    throw new Error(`no page target on CDP port ${port} (app rodando com --remote-debugging-port?)`)
   }
-  return connect((page as unknown as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl)
+  return connect(page.webSocketDebuggerUrl)
 }
 
 // ─── process helpers (macOS: `open -a`, `pkill`) ───────────────────────────
