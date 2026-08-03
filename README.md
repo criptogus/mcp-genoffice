@@ -16,9 +16,11 @@ its original bytes. Layout never breaks.
 | `genoffice_extract_text` | Extract readable text from `.docx` / `.xlsx` / `.pptx` / `.pdf` (slides/table structure preserved) |
 | `genoffice_docx_blocks` | Parse a `.docx` and list top-level blocks (index, type, style, text) |
 | `genoffice_docx_patch` | Rewrite one or more paragraphs with a byte-preserving roundtrip; writes a new file, never touches the original |
+| `genoffice_docx_watermark` | Set/remove a text watermark (header regenerated, body byte-preserved) |
+| `genoffice_pptx_slides` | List slides and their text elements (id, name, type, text) |
+| `genoffice_pptx_patch` | Replace text of elements on a slide (element-level byte-preserving) |
 
-More tools (pptx edit, xlsx ops, CDP control of the GenOffice app) are on the
-roadmap.
+More tools (xlsx ops, CDP control of the GenOffice app) are on the roadmap.
 
 ## Install / run
 

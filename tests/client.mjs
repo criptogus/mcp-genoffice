@@ -87,5 +87,23 @@ if (!pp.isError) {
   console.log(slides2.isError ? '❌ ERROR' : '✅ OK')
 }
 
+// 9. docx_watermark: set + verify the doc still parses with identical blocks
+const wmOut = '/tmp/genoffice-watermarked.docx'
+const wm = await client.callTool({
+  name: 'genoffice_docx_watermark',
+  arguments: { path: FIXTURE_DOCX, text: 'CONFIDENCIAL', outPath: wmOut },
+})
+console.log('\n--- genoffice_docx_watermark ---')
+console.log(wm.content[0].text)
+console.log(wm.isError ? '❌ ERROR' : '✅ OK')
+
+if (!wm.isError) {
+  const blocks3 = await client.callTool({ name: 'genoffice_docx_blocks', arguments: { path: wmOut } })
+  const same = blocks3.content[0].text === blocks.content[0].text
+  console.log('--- verificação: blocks do docx watermarked idênticos ao original ---')
+  console.log(same ? '✅ OK (corpo intacto, só header regenerado)' : '❌ DIVERGÊNCIA no corpo')
+  console.log(blocks3.isError ? '❌ ERROR' : '✅ OK')
+}
+
 await client.close()
 process.exit(0)

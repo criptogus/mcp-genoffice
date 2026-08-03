@@ -195,4 +195,60 @@ export function registerDocxTools(server: McpServer): void {
       }
     },
   )
+
+  server.registerTool(
+    'genoffice_docx_watermark',
+    {
+      title: 'GenOffice docx watermark',
+      description:
+        'Set a text watermark on a .docx using the GenOffice engine: the header ' +
+        'part is regenerated with the watermark paragraph while the document body ' +
+        'keeps its original bytes (byte-preserving roundtrip). Pass an empty ' +
+        'string to remove the watermark. Writes a NEW file, never modifies the original.',
+      inputSchema: {
+        path: z.string().describe('Absolute path to the source .docx (never modified)'),
+        text: z.string().describe('Watermark text ("" removes the watermark)'),
+        outPath: z
+          .string()
+          .optional()
+          .describe('Absolute output path; defaults to <dir>/<name>.watermarked.docx'),
+      },
+    },
+    async ({ path, text, outPath }) => {
+      try {
+        const engine = await loadEngine<DocxEngine>('docx-engine')
+        const parsed = await engine.parseDocx(readFileSync(path))
+        const visible = parsed.blocks.filter((b: EngineBlock) => !b.hidden)
+        const finalBlocks = visible.map((b: EngineBlock) => ({
+          kind: 'original' as const,
+          docxIndex: b.docxIndex,
+        }))
+        const out = outPath ?? join(dirname(path), `${basename(path, '.docx')}.watermarked.docx`)
+        const saved = await engine.saveDocx(parsed, finalBlocks, { watermark: text || null })
+        const { writeFileSync } = await import('node:fs')
+        writeFileSync(out, Buffer.from(saved))
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                `${text ? `Watermark "${text}" aplicado` : 'Watermark removido'} → ${out}\n` +
+                `- Corpo do documento preservado byte a byte (só o header foi regenerado)`,
+            },
+          ],
+        }
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: `genoffice_docx_watermark failed: ${(err as Error).message}. ` +
+                `Check the path is a valid .docx and the output directory is writable.`,
+            },
+          ],
+        }
+      }
+    },
+  )
 }
