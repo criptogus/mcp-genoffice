@@ -12,7 +12,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/"
+    "test": "node tests/client.mjs"
   },
   "keywords": ["mcp", "genoffice", "docx", "pptx", "xlsx", "office", "ai"],
   "license": "MIT",
