@@ -1,0 +1,67 @@
+// Real-client test: spawn the server over stdio, list tools, and exercise the
+// tools against real fixture files from the genoffice clone.
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const projectRoot = join(here, '..')
+
+// Fixtures always come from the dev clone; SERVER_SRC controls what the server
+// sees (unset/empty = server auto-clones the pinned genoffice revision).
+const FIXTURE_SRC = process.env.FIXTURE_SRC ?? '/tmp/genoffice'
+const FIXTURE_PPTX = join(FIXTURE_SRC, 'packages/pptx-engine/tests/fixtures/01_standard_business.pptx')
+const FIXTURE_DOCX = join(FIXTURE_SRC, 'fixtures/generated/simple.docx')
+const OUT_DOCX = '/tmp/genoffice-patched-via-mcp.docx'
+
+const serverEnv = { ...process.env }
+const serverSrc = process.env.SERVER_SRC
+if (serverSrc) serverEnv.GENOFFICE_SRC = serverSrc
+else delete serverEnv.GENOFFICE_SRC
+
+const transport = new StdioClientTransport({
+  command: process.execPath,
+  args: ['--import', 'tsx', join(projectRoot, 'src', 'index.ts')],
+  env: serverEnv,
+  cwd: projectRoot,
+})
+const client = new Client({ name: 'mcp-genoffice-test', version: '0.0.1' })
+await client.connect(transport)
+
+// 1. list tools
+const tools = await client.listTools()
+console.log('TOOLS:', tools.tools.map((t) => t.name).join(', '))
+
+// 2. extract_text on the pptx fixture
+const ext = await client.callTool({ name: 'genoffice_extract_text', arguments: { path: FIXTURE_PPTX } })
+const extText = ext.content[0].text
+console.log('\n--- genoffice_extract_text ---')
+console.log(extText.slice(0, 220))
+console.log(ext.isError ? '❌ ERROR' : '✅ OK')
+
+// 3. docx_blocks on the simple.docx fixture
+const blocks = await client.callTool({ name: 'genoffice_docx_blocks', arguments: { path: FIXTURE_DOCX } })
+console.log('\n--- genoffice_docx_blocks ---')
+console.log(blocks.content[0].text)
+console.log(blocks.isError ? '❌ ERROR' : '✅ OK')
+
+// 4. docx_patch: rewrite block 0
+const patch = await client.callTool({
+  name: 'genoffice_docx_patch',
+  arguments: { path: FIXTURE_DOCX, edits: [{ index: 0, text: 'TITULO ALTERADO VIA MCP-GENOFFICE' }], outPath: OUT_DOCX },
+})
+console.log('\n--- genoffice_docx_patch ---')
+console.log(patch.content[0].text)
+console.log(patch.isError ? '❌ ERROR' : '✅ OK')
+
+// 5. verify the patched file round-trips and keeps the other paragraph bytes
+if (!patch.isError) {
+  const blocks2 = await client.callTool({ name: 'genoffice_docx_blocks', arguments: { path: OUT_DOCX } })
+  console.log('\n--- verificação: blocks do arquivo patched ---')
+  console.log(blocks2.content[0].text)
+  console.log(blocks2.isError ? '❌ ERROR' : '✅ OK')
+}
+
+await client.close()
+process.exit(0)

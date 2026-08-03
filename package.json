@@ -1,0 +1,28 @@
+{
+  "name": "mcp-genoffice",
+  "version": "0.1.0",
+  "description": "MCP server for GenOffice: byte-preserving edits to .docx/.pptx/.xlsx via the GenOffice engines (headless), plus CDP control of the GenOffice app.",
+  "type": "module",
+  "bin": {
+    "mcp-genoffice": "bin/mcp-genoffice.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/"
+  },
+  "keywords": ["mcp", "genoffice", "docx", "pptx", "xlsx", "office", "ai"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "tsx": "^4.19.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
