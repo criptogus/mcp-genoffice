@@ -63,5 +63,29 @@ if (!patch.isError) {
   console.log(blocks2.isError ? '❌ ERROR' : '✅ OK')
 }
 
+// 6. pptx_slides on the pptx fixture
+const slides = await client.callTool({ name: 'genoffice_pptx_slides', arguments: { path: FIXTURE_PPTX } })
+console.log('\n--- genoffice_pptx_slides ---')
+console.log(slides.content[0].text.slice(0, 700))
+console.log(slides.isError ? '❌ ERROR' : '✅ OK')
+
+// 7. pptx_patch: edit the title element on slide 1
+const pptxOut = '/tmp/genoffice-patched-via-mcp.pptx'
+const pp = await client.callTool({
+  name: 'genoffice_pptx_patch',
+  arguments: { path: FIXTURE_PPTX, slide: 1, edits: [{ element: 'Title 1', text: 'TITULO PPTX VIA MCP-GENOFFICE' }], outPath: pptxOut },
+})
+console.log('\n--- genoffice_pptx_patch ---')
+console.log(pp.content[0].text)
+console.log(pp.isError ? '❌ ERROR' : '✅ OK')
+
+// 8. verify: re-open the patched pptx and confirm the new title
+if (!pp.isError) {
+  const slides2 = await client.callTool({ name: 'genoffice_pptx_slides', arguments: { path: pptxOut } })
+  console.log('\n--- verificação: slide 1 do pptx patched ---')
+  console.log(slides2.content[0].text.split('\n').slice(0, 6).join('\n'))
+  console.log(slides2.isError ? '❌ ERROR' : '✅ OK')
+}
+
 await client.close()
 process.exit(0)

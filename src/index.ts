@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerDocxTools } from './tools/docx.js'
 import { registerExtractTools } from './tools/extract.js'
+import { registerPptxTools } from './tools/pptx.js'
 
 const server = new McpServer({
   name: 'mcp-genoffice',
@@ -10,6 +11,7 @@ const server = new McpServer({
 
 registerExtractTools(server)
 registerDocxTools(server)
+registerPptxTools(server)
 
 const transport = new StdioServerTransport()
 await server.connect(transport)
