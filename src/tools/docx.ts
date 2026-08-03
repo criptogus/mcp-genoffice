@@ -30,6 +30,7 @@ interface DocxEngine {
     finalBlocks: unknown[],
     options?: Record<string, unknown>,
   ): Promise<Uint8Array>
+  buildBlankDocx(options?: { eastAsiaFont?: string }): Promise<Uint8Array>
 }
 
 function blockPreview(b: EngineBlock): string {
@@ -245,6 +246,137 @@ export function registerDocxTools(server: McpServer): void {
               type: 'text' as const,
               text: `genoffice_docx_watermark failed: ${(err as Error).message}. ` +
                 `Check the path is a valid .docx and the output directory is writable.`,
+            },
+          ],
+        }
+      }
+    },
+  )
+
+  server.registerTool(
+    'genoffice_docx_create',
+    {
+      title: 'GenOffice docx create',
+      description:
+        'Create a NEW .docx from scratch using the GenOffice engine (buildBlankDocx). ' +
+        'Optionally pass paragraphs (each string becomes one paragraph; use \\n inside ' +
+        'a string for line breaks within the same paragraph). Writes the file to outPath.',
+      inputSchema: {
+        outPath: z.string().describe('Absolute path where the new .docx will be written'),
+        paragraphs: z
+          .array(z.string())
+          .optional()
+          .describe('Initial paragraphs; omit for a blank document'),
+      },
+    },
+    async ({ outPath, paragraphs }) => {
+      try {
+        const engine = await loadEngine<DocxEngine>('docx-engine')
+        let bytes = await engine.buildBlankDocx()
+        if (paragraphs && paragraphs.length > 0) {
+          const parsed = await engine.parseDocx(bytes)
+          const finalBlocks = paragraphs.map((text) => ({
+            kind: 'generated' as const,
+            block: { type: 'paragraph', runs: [{ text }] },
+          }))
+          bytes = await engine.saveDocx(parsed, finalBlocks)
+        }
+        const { writeFileSync } = await import('node:fs')
+        writeFileSync(outPath, Buffer.from(bytes))
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                `Novo .docx criado → ${outPath}\n` +
+                (paragraphs?.length
+                  ? `- ${paragraphs.length} parágrafo(s) inicial(is)\n`
+                  : '- Documento em branco\n') +
+                `Use genoffice_docx_blocks + genoffice_docx_patch para editar.`,
+            },
+          ],
+        }
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: `genoffice_docx_create failed: ${(err as Error).message}. ` +
+                `Check that outPath is a writable absolute path.`,
+            },
+          ],
+        }
+      }
+    },
+  )
+
+  server.registerTool(
+    'genoffice_docx_delete',
+    {
+      title: 'GenOffice docx delete blocks',
+      description:
+        'Delete one or more top-level blocks (paragraphs/headings) from a .docx using ' +
+        'the GenOffice byte-preserving roundtrip: the deleted blocks are spliced out, ' +
+        'all remaining blocks keep their original bytes. Indexes come from ' +
+        'genoffice_docx_blocks (0-based visible order). Writes a NEW file.',
+      inputSchema: {
+        path: z.string().describe('Absolute path to the source .docx (never modified)'),
+        indexes: z
+          .array(z.number().int().min(0))
+          .min(1)
+          .describe('Block indexes to delete (from genoffice_docx_blocks)'),
+        outPath: z
+          .string()
+          .optional()
+          .describe('Absolute output path; defaults to <dir>/<name>.deleted.docx'),
+      },
+    },
+    async ({ path, indexes, outPath }) => {
+      try {
+        const engine = await loadEngine<DocxEngine>('docx-engine')
+        const parsed = await engine.parseDocx(readFileSync(path))
+        const visible = parsed.blocks.filter((b: EngineBlock) => !b.hidden)
+        for (const i of indexes) {
+          if (i >= visible.length) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `index ${i} out of range: file has ${visible.length} visible blocks. ` +
+                    `Run genoffice_docx_blocks first.`,
+                },
+              ],
+            }
+          }
+        }
+        const drop = new Set(indexes)
+        const finalBlocks = visible
+          .filter((_: EngineBlock, i: number) => !drop.has(i))
+          .map((b: EngineBlock) => ({ kind: 'original' as const, docxIndex: b.docxIndex }))
+        const out = outPath ?? join(dirname(path), `${basename(path, '.docx')}.deleted.docx`)
+        const saved = await engine.saveDocx(parsed, finalBlocks)
+        const { writeFileSync } = await import('node:fs')
+        writeFileSync(out, Buffer.from(saved))
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text:
+                `${indexes.length} bloco(s) excluído(s) → ${out}\n` +
+                `- ${finalBlocks.length} bloco(s) restante(s), bytes originais preservados`,
+            },
+          ],
+        }
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: `genoffice_docx_delete failed: ${(err as Error).message}. ` +
+                `Check the path, indexes (genoffice_docx_blocks) and output directory.`,
             },
           ],
         }

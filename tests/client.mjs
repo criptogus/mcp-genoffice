@@ -105,5 +105,52 @@ if (!wm.isError) {
   console.log(blocks3.isError ? '❌ ERROR' : '✅ OK')
 }
 
+// 10. docx_create: new document from paragraphs
+const createdDocx = '/tmp/genoffice-created.docx'
+const dc = await client.callTool({
+  name: 'genoffice_docx_create',
+  arguments: { outPath: createdDocx, paragraphs: ['Título Criado', 'Parágrafo um', 'Parágrafo dois'] },
+})
+console.log('\n--- genoffice_docx_create ---')
+console.log(dc.content[0].text)
+console.log(dc.isError ? '❌ ERROR' : '✅ OK')
+
+// 11. verify create → docx_delete block 1
+if (!dc.isError) {
+  const dd = await client.callTool({ name: 'genoffice_docx_delete', arguments: { path: createdDocx, indexes: [1], outPath: '/tmp/genoffice-created-deleted.docx' } })
+  console.log('\n--- genoffice_docx_delete ---')
+  console.log(dd.content[0].text)
+  console.log(dd.isError ? '❌ ERROR' : '✅ OK')
+  if (!dd.isError) {
+    const b4 = await client.callTool({ name: 'genoffice_docx_blocks', arguments: { path: '/tmp/genoffice-created-deleted.docx' } })
+    console.log('--- verificação: blocks após delete ---')
+    console.log(b4.content[0].text)
+    console.log(b4.content[0].text.includes('Título Criado') && b4.content[0].text.includes('Parágrafo dois') && !b4.content[0].text.includes('Parágrafo um') ? '✅ OK (2 blocos, 1º e 3º intactos)' : '❌ DIVERGÊNCIA')
+  }
+}
+
+// 12. pptx_create
+const createdPptx = '/tmp/genoffice-created.pptx'
+const pc = await client.callTool({ name: 'genoffice_pptx_create', arguments: { outPath: createdPptx } })
+console.log('\n--- genoffice_pptx_create ---')
+console.log(pc.content[0].text)
+console.log(pc.isError ? '❌ ERROR' : '✅ OK')
+
+// 13. pptx_delete: remove Subtitle 2 from slide 1 of the fixture
+const pd = await client.callTool({
+  name: 'genoffice_pptx_delete',
+  arguments: { path: FIXTURE_PPTX, slide: 1, elements: ['Subtitle 2'], outPath: '/tmp/genoffice-fixture-deleted.pptx' },
+})
+console.log('\n--- genoffice_pptx_delete ---')
+console.log(pd.content[0].text)
+console.log(pd.isError ? '❌ ERROR' : '✅ OK')
+if (!pd.isError) {
+  const sl3 = await client.callTool({ name: 'genoffice_pptx_slides', arguments: { path: '/tmp/genoffice-fixture-deleted.pptx' } })
+  const slide1 = sl3.content[0].text.split('\n').slice(0, 4).join('\n')
+  console.log('--- verificação: slide 1 após delete ---')
+  console.log(slide1)
+  console.log(slide1.includes('Title 1') && !slide1.includes('Subtitle 2') ? '✅ OK (Title 1 ficou, Subtitle 2 saiu)' : '❌ DIVERGÊNCIA')
+}
+
 await client.close()
 process.exit(0)
