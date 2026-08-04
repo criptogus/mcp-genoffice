@@ -131,6 +131,12 @@ export function registerPptxTools(server: McpServer): void {
                 .string()
                 .describe('Element name (e.g. "Title 1") or id (from genoffice_pptx_slides)'),
               text: z.string().describe('New text (\\n = new paragraph)'),
+              // Fork: formatação opcional — sobrescreve o template do elemento
+              bold: z.boolean().optional().describe('Bold (default: herda do template)'),
+              italic: z.boolean().optional().describe('Italic (default: herda do template)'),
+              color: z.string().optional().describe('Hex color, e.g. "#FF0000"'),
+              sizePt: z.number().positive().optional().describe('Font size in points'),
+              font: z.string().optional().describe('Font family name'),
             }),
           )
           .min(1)
@@ -176,9 +182,27 @@ export function registerPptxTools(server: McpServer): void {
           const paras = el.text!.paragraphs
           const templatePara: Paragraph = paras[0] ?? { runs: [] }
           const templateRun: TextRun = templatePara.runs[0] ?? {}
+          // Fork: overrides de formatação opcionais sobre o template
+          const fmt: Record<string, unknown> = {}
+          if (edit.bold !== undefined) fmt.bold = edit.bold
+          if (edit.italic !== undefined) fmt.italic = edit.italic
+          if (edit.color) fmt.color = edit.color.startsWith('#') ? edit.color : `#${edit.color}`
+          if (edit.sizePt) {
+            fmt.fontSize = edit.sizePt
+            // a engine só emite <a:sz> quando fontSizeImplicit é falso
+            fmt.fontSizeImplicit = false
+          }
+          if (edit.font) {
+            // a engine só emite <a:latin typeface> quando não há font explícita
+            // herdada (fontImplicit/latinFont/eaFont) — limpar para o override valer
+            fmt.fontFamily = edit.font
+            fmt.fontImplicit = false
+            fmt.latinFont = undefined
+            fmt.eaFont = undefined
+          }
           el.text!.paragraphs = edit.text.split('\n').map((line) => ({
             ...templatePara,
-            runs: [{ ...templateRun, text: line }],
+            runs: [{ ...templateRun, text: line, ...fmt }],
           }))
           el.dirty = true
           done.push(`${el.name ?? el.id} → "${preview(edit.text)}"`)
