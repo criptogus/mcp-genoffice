@@ -97,8 +97,9 @@ export function registerDocxTools(server: McpServer): void {
         'roundtrip: only the edited blocks are regenerated as OOXML fragments; every ' +
         'untouched block keeps its original bytes, so layout, styles, headers, comments ' +
         'and other parts survive. Paragraph formatting (styleId/rawPPr) is carried over. ' +
-        'Input: file path + edits [{index, text}] where index comes from genoffice_docx_blocks ' +
-        '(0-based visible order). Output: a new patched file (never modifies the original).',
+        'Input: file path + edits [{index, text, bold?, italic?, color?, sizePt?, font?}] ' +
+        'where index comes from genoffice_docx_blocks (0-based visible order) and color is ' +
+        'hex like "#FF0000" (sizePt in points). Output: a new patched file (never modifies the original).',
       inputSchema: {
         path: z.string().describe('Absolute path to the source .docx (never modified)'),
         edits: z
@@ -106,6 +107,11 @@ export function registerDocxTools(server: McpServer): void {
             z.object({
               index: z.number().int().min(0).describe('Block index from genoffice_docx_blocks'),
               text: z.string().describe('New paragraph text'),
+              bold: z.boolean().optional().describe('Bold (default: keep original)'),
+              italic: z.boolean().optional().describe('Italic (default: keep original)'),
+              color: z.string().optional().describe('Hex color, e.g. "#FF0000" or "FF0000"'),
+              sizePt: z.number().positive().optional().describe('Font size in points (e.g. 14)'),
+              font: z.string().optional().describe('Font family name (e.g. "Inter", "Arial")'),
             }),
           )
           .min(1)
@@ -122,7 +128,7 @@ export function registerDocxTools(server: McpServer): void {
         const parsed = await engine.parseDocx(readFileSync(path))
         const visible = parsed.blocks.filter((b: EngineBlock) => !b.hidden)
 
-        const byIndex = new Map(edits.map((e) => [e.index, e.text]))
+        const byIndex = new Map(edits.map((e) => [e.index, e]))
         for (const e of edits) {
           if (e.index >= visible.length) {
             return {
@@ -151,17 +157,25 @@ export function registerDocxTools(server: McpServer): void {
         }
 
         const finalBlocks = visible.map((b: EngineBlock, i: number) => {
-          const newText = byIndex.get(i)
-          if (newText === undefined) {
+          const edit = byIndex.get(i)
+          if (edit === undefined) {
             return { kind: 'original', docxIndex: b.docxIndex }
           }
+          // Fork: formatação opcional por edição — sem campos de formatação,
+          // comportamento idêntico ao anterior (texto puro + estilo do parágrafo).
+          const run: Record<string, unknown> = { text: edit.text }
+          if (edit.bold !== undefined) run.bold = edit.bold
+          if (edit.italic !== undefined) run.italic = edit.italic
+          if (edit.color) run.color = edit.color.replace(/^#/, '')
+          if (edit.sizePt) run.sizeHalfPoints = Math.round(edit.sizePt * 2)
+          if (edit.font) run.font = edit.font
           return {
             kind: 'generated',
             block: {
               type: b.type === 'listItem' ? 'paragraph' : b.type,
               styleId: b.styleId ?? undefined,
               rawPPr: b.rawPPr ?? undefined,
-              runs: [{ text: newText }],
+              runs: [run],
             },
           }
         })
@@ -259,12 +273,27 @@ export function registerDocxTools(server: McpServer): void {
       title: 'GenOffice docx create',
       description:
         'Create a NEW .docx from scratch using the GenOffice engine (buildBlankDocx). ' +
-        'Optionally pass paragraphs (each string becomes one paragraph; use \\n inside ' +
-        'a string for line breaks within the same paragraph). Writes the file to outPath.',
+        'Optionally pass paragraphs: each string (or {text, bold?, italic?, color?, sizePt?, font?} ' +
+        'object) becomes one paragraph; use \\n inside a string for line breaks within the same ' +
+        'paragraph. color is hex like "#FF0000", sizePt in points. Writes the file to outPath.',
       inputSchema: {
         outPath: z.string().describe('Absolute path where the new .docx will be written'),
         paragraphs: z
-          .array(z.string())
+          .array(
+            z.union([
+              z.string().describe('Plain paragraph text'),
+              z
+                .object({
+                  text: z.string(),
+                  bold: z.boolean().optional(),
+                  italic: z.boolean().optional(),
+                  color: z.string().optional().describe('Hex color, e.g. "#FF0000"'),
+                  sizePt: z.number().positive().optional().describe('Font size in points'),
+                  font: z.string().optional().describe('Font family name'),
+                })
+                .describe('Paragraph with formatting'),
+            ]),
+          )
           .optional()
           .describe('Initial paragraphs; omit for a blank document'),
       },
@@ -275,10 +304,23 @@ export function registerDocxTools(server: McpServer): void {
         let bytes = await engine.buildBlankDocx()
         if (paragraphs && paragraphs.length > 0) {
           const parsed = await engine.parseDocx(bytes)
-          const finalBlocks = paragraphs.map((text) => ({
-            kind: 'generated' as const,
-            block: { type: 'paragraph', runs: [{ text }] },
-          }))
+          const finalBlocks = paragraphs.map((p) => {
+            const isObj = typeof p === 'object'
+            const text = isObj ? p.text : p
+            // Fork: formatação opcional por parágrafo
+            const run: Record<string, unknown> = { text }
+            if (isObj) {
+              if (p.bold !== undefined) run.bold = p.bold
+              if (p.italic !== undefined) run.italic = p.italic
+              if (p.color) run.color = p.color.replace(/^#/, '')
+              if (p.sizePt) run.sizeHalfPoints = Math.round(p.sizePt * 2)
+              if (p.font) run.font = p.font
+            }
+            return {
+              kind: 'generated' as const,
+              block: { type: 'paragraph', runs: [run] },
+            }
+          })
           bytes = await engine.saveDocx(parsed, finalBlocks)
         }
         const { writeFileSync } = await import('node:fs')
