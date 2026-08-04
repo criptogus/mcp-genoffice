@@ -65,6 +65,7 @@ export function registerAppTools(server: McpServer): void {
     },
     async () => {
       const installed = appInstalled()
+      const appName = detectAppName()
       const ver = appVersion()
       const version = await cdpVersion()
       const targets = await cdpTargets()
@@ -74,7 +75,7 @@ export function registerAppTools(server: McpServer): void {
           {
             type: 'text' as const,
             text:
-              `App instalado: ${installed ? 'sim' : 'não'}${ver ? ` (v${ver})` : ''}\n` +
+              `App: ${appName}${installed ? '' : ' (não instalado)'}${ver ? ` v${ver}` : ''}\n` +
               `CDP porta ${CDP_PORT}: ${version ? 'ATIVO' : 'inativo'}\n` +
               (version
                 ? `  debugger: ${version['Browser'] ?? ''}\n` +
