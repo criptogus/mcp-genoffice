@@ -16,18 +16,34 @@ import {
   waitForCdp,
 } from '../cdp.js'
 
-const APP_NAME = 'GenOffice'
+// Fork: o conector detecta HermesOffice (fork) primeiro, com fallback para o
+// GenOffice original — assim funciona com os dois instalados.
+const APP_NAMES = ['HermesOffice', 'GenOffice'] as const
+
+function detectAppName(): string {
+  for (const name of APP_NAMES) {
+    if (isMac()) {
+      if (existsSync(`/Applications/${name}.app`)) return name
+    } else if (existsSync(join(process.env.LOCALAPPDATA ?? '', 'Programs', name))) {
+      return name
+    }
+  }
+  return APP_NAMES[0]
+}
 
 function appInstalled(): boolean {
-  if (isMac()) return existsSync('/Applications/GenOffice.app')
-  return existsSync(join(process.env.LOCALAPPDATA ?? '', 'Programs', 'GenOffice'))
+  return APP_NAMES.some((name) => {
+    if (isMac()) return existsSync(`/Applications/${name}.app`)
+    return existsSync(join(process.env.LOCALAPPDATA ?? '', 'Programs', name))
+  })
 }
 
 function appVersion(): string | null {
   if (!isMac()) return null
+  const name = detectAppName()
   try {
     const out = execSync(
-      `/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Applications/GenOffice.app/Contents/Info.plist`,
+      `/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" /Applications/${name}.app/Contents/Info.plist`,
     )
     return out.toString().trim()
   } catch {
@@ -175,8 +191,9 @@ export function registerAppTools(server: McpServer): void {
           ],
         }
       }
+      const appName = detectAppName()
       return await new Promise((resolve) => {
-        execFile('open', ['-a', APP_NAME, path], (err) => {
+        execFile('open', ['-a', appName, path], (err) => {
           if (err) {
             resolve({
               isError: true,
@@ -185,7 +202,7 @@ export function registerAppTools(server: McpServer): void {
           } else {
             resolve({
               content: [
-                { type: 'text' as const, text: `Abrindo ${path} no GenOffice…` },
+                { type: 'text' as const, text: `Abrindo ${path} no ${appName}…` },
               ],
             })
           }
