@@ -15,12 +15,12 @@ its original bytes. Layout never breaks.
 | --- | --- |
 | `genoffice_extract_text` | Extract readable text from `.docx` / `.xlsx` / `.pptx` / `.pdf` (slides/table structure preserved) |
 | `genoffice_docx_blocks` | Parse a `.docx` and list top-level blocks (index, type, style, text) |
-| `genoffice_docx_patch` | Rewrite one or more paragraphs with a byte-preserving roundtrip; writes a new file, never touches the original |
+| `genoffice_docx_patch` | Rewrite one or more paragraphs with a byte-preserving roundtrip; optional formatting per edit (bold/italic/color/sizePt/font); writes a new file, never touches the original |
 | `genoffice_docx_watermark` | Set/remove a text watermark (header regenerated, body byte-preserved) |
-| `genoffice_docx_create` | Create a NEW .docx from scratch (optional initial paragraphs) |
+| `genoffice_docx_create` | Create a NEW .docx from scratch (optional initial paragraphs, each with optional formatting) |
 | `genoffice_docx_delete` | Delete blocks (paragraphs/headings) — remaining blocks byte-preserved |
 | `genoffice_pptx_slides` | List slides and their text elements (id, name, type, text) |
-| `genoffice_pptx_patch` | Replace text of elements on a slide (element-level byte-preserving) |
+| `genoffice_pptx_patch` | Replace text of elements on a slide (element-level byte-preserving); optional formatting per edit (bold/italic/color/sizePt/font) |
 | `genoffice_pptx_create` | Create a NEW .pptx from scratch (one blank slide) |
 | `genoffice_pptx_delete` | Delete elements from a slide (other slides/parts byte-preserved) |
 | `genoffice_app_status` | GenOffice desktop app: installed? CDP port up? (read-only) |
